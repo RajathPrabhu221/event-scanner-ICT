@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+
+<title>Event Pass Scanner</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 18px;
+  background: #f4f4f4;
+  font-family: Arial, Helvetica, sans-serif;
+  text-align: center;
+}
+
+.wrapper {
+  max-width: 480px;
+  margin: auto;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.12);
+}
+
+h1 {
+  font-size: 25px;
+  margin: 5px 0 20px;
+}
+
+#reader {
+  width: 100%;
+  margin-top: 15px;
+}
+
+input {
+  width: 100%;
+  padding: 16px;
+  font-size: 22px;
+  text-align: center;
+  border: 1px solid #aaa;
+  border-radius: 9px;
+}
+
+button {
+  width: 100%;
+  margin-top: 15px;
+  padding: 16px;
+  font-size: 20px;
+  font-weight: bold;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.start,
+.next {
+  background: #222;
+  color: white;
+}
+
+.status {
+  font-size: 37px;
+  font-weight: bold;
+  margin-top: 12px;
+}
+
+.name {
+  font-size: 28px;
+  font-weight: bold;
+  margin-top: 16px;
+}
+
+.pass {
+  font-size: 19px;
+  margin-top: 8px;
+}
+
+.time {
+  font-size: 15px;
+  margin-top: 10px;
+}
+
+.green {
+  color: #17733b;
+}
+
+.red {
+  color: #b00020;
+}
+
+.orange {
+  color: #9a5b00;
+}
+
+#result {
+  display: none;
+}
+
+.small {
+  font-size: 13px;
+  color: #666;
+  margin-top: 14px;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+<div class="wrapper">
+
+<div class="card">
+
+<h1>Event Pass Scanner</h1>
+
+
+<div id="login">
+
+  <p>Enter Staff PIN</p>
+
+  <input
+    id="pin"
+    type="password"
+    inputmode="numeric"
+    placeholder="Staff PIN">
+
+  <button
+    class="start"
+    onclick="beginScanning()">
+
+    START SCANNER
+
+  </button>
+
+</div>
+
+
+<div id="scannerArea"
+     style="display:none;">
+
+  <div id="reader"></div>
+
+</div>
+
+
+<div id="result"></div>
+
+</div>
+
+</div>
+
+
+<script>
+
+/*
+REPLACE THIS WITH YOUR GOOGLE APPS SCRIPT /exec URL
+*/
+
+const WEB_APP_URL =
+  "PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE";
+
+
+let staffPin = "";
+let scanner = null;
+let processing = false;
+
+
+window.addEventListener(
+  "load",
+  function() {
+
+    const savedPin =
+      localStorage.getItem("eventStaffPin");
+
+    if (savedPin) {
+      document.getElementById("pin").value =
+        savedPin;
+    }
+  }
+);
+
+
+function beginScanning() {
+
+  const pin =
+    document.getElementById("pin")
+      .value
+      .trim();
+
+  if (!pin) {
+    alert("Please enter the staff PIN.");
+    return;
+  }
+
+  staffPin = pin;
+
+  localStorage.setItem(
+    "eventStaffPin",
+    pin
+  );
+
+  document.getElementById("login")
+    .style.display = "none";
+
+  document.getElementById("result")
+    .style.display = "none";
+
+  document.getElementById("scannerArea")
+    .style.display = "block";
+
+  startCamera();
+}
+
+
+function startCamera() {
+
+  processing = false;
+
+  document.getElementById("result")
+    .style.display = "none";
+
+  document.getElementById("scannerArea")
+    .style.display = "block";
+
+  document.getElementById("reader")
+    .innerHTML = "";
+
+  scanner =
+    new Html5Qrcode("reader");
+
+  scanner.start(
+
+    {
+      facingMode: "environment"
+    },
+
+    {
+      fps: 10,
+
+      qrbox: {
+        width: 250,
+        height: 250
+      }
+    },
+
+    function(decodedText) {
+
+      if (processing) return;
+
+      processing = true;
+
+      scanner.stop()
+        .then(function() {
+          validateQR(decodedText);
+        })
+        .catch(function() {
+          validateQR(decodedText);
+        });
+    },
+
+    function() {
+      // normal scanning misses ignored
+    }
+
+  ).catch(function(error) {
+
+    document.getElementById("scannerArea")
+      .style.display = "none";
+
+    const box =
+      document.getElementById("result");
+
+    box.style.display = "block";
+
+    box.innerHTML = `
+      <div class="status red">
+        CAMERA ERROR
+      </div>
+
+      <p>
+        Please allow camera permission
+        in your browser settings.
+      </p>
+
+      <button
+        class="next"
+        onclick="location.reload()">
+
+        TRY AGAIN
+      </button>
+    `;
+  });
+}
+
+
+function validateQR(code) {
+
+  document.getElementById("scannerArea")
+    .style.display = "none";
+
+  const callbackName =
+    "qrCallback" + Date.now();
+
+  window[callbackName] =
+    function(data) {
+
+      try {
+        delete window[callbackName];
+      } catch (e) {}
+
+      const request =
+        document.getElementById(
+          "validationRequest"
+        );
+
+      if (request) {
+        request.remove();
+      }
+
+      showResult(data);
+    };
+
+
+  const script =
+    document.createElement("script");
+
+  script.id =
+    "validationRequest";
+
+  script.src =
+    WEB_APP_URL +
+    "?code=" +
+    encodeURIComponent(code) +
+    "&pin=" +
+    encodeURIComponent(staffPin) +
+    "&callback=" +
+    callbackName;
+
+
+  script.onerror =
+    function() {
+
+      showError(
+        "Could not contact the validator."
+      );
+
+    };
+
+
+  document.body.appendChild(script);
+}
+
+
+function showResult(data) {
+
+  const box =
+    document.getElementById("result");
+
+  box.style.display = "block";
+
+
+  if (data.status === "VALID") {
+
+    box.innerHTML = `
+
+      <div class="status green">
+        ✓ VALID
+      </div>
+
+      <div class="name">
+        ${escapeHtml(data.guestName)}
+      </div>
+
+      <div class="pass">
+        ${escapeHtml(data.passNo)}
+      </div>
+
+      <div class="time">
+        Checked in:
+        ${escapeHtml(data.checkedAt)}
+      </div>
+
+      <button
+        class="next"
+        onclick="scanNext()">
+
+        SCAN NEXT
+
+      </button>
+    `;
+
+    return;
+  }
+
+
+  if (data.status === "USED") {
+
+    box.innerHTML = `
+
+      <div class="status red">
+        ⛔ ALREADY USED
+      </div>
+
+      <div class="name">
+        ${escapeHtml(data.guestName)}
+      </div>
+
+      <div class="pass">
+        ${escapeHtml(data.passNo)}
+      </div>
+
+      <div class="time">
+        First check-in:
+        ${escapeHtml(data.checkedAt)}
+      </div>
+
+      <button
+        class="next"
+        onclick="scanNext()">
+
+        SCAN NEXT
+
+      </button>
+    `;
+
+    return;
+  }
+
+
+  if (data.status === "BAD_PIN") {
+
+    localStorage.removeItem(
+      "eventStaffPin"
+    );
+
+    box.innerHTML = `
+
+      <div class="status red">
+        WRONG STAFF PIN
+      </div>
+
+      <button
+        class="next"
+        onclick="restartLogin()">
+
+        ENTER PIN AGAIN
+
+      </button>
+    `;
+
+    return;
+  }
+
+
+  if (data.status === "INVALID") {
+
+    box.innerHTML = `
+
+      <div class="status orange">
+        ✕ INVALID PASS
+      </div>
+
+      <p>
+        QR code not found in guest list.
+      </p>
+
+      <button
+        class="next"
+        onclick="scanNext()">
+
+        SCAN NEXT
+
+      </button>
+    `;
+
+    return;
+  }
+
+
+  showError(
+    data.message ||
+    "Unknown error."
+  );
+}
+
+
+function scanNext() {
+
+  document.getElementById("result")
+    .style.display = "none";
+
+  startCamera();
+}
+
+
+function restartLogin() {
+
+  document.getElementById("result")
+    .style.display = "none";
+
+  document.getElementById("login")
+    .style.display = "block";
+}
+
+
+function showError(message) {
+
+  const box =
+    document.getElementById("result");
+
+  box.style.display = "block";
+
+  box.innerHTML = `
+
+    <div class="status red">
+      ERROR
+    </div>
+
+    <p>
+      ${escapeHtml(message)}
+    </p>
+
+    <button
+      class="next"
+      onclick="scanNext()">
+
+      TRY AGAIN
+
+    </button>
+  `;
+}
+
+
+function escapeHtml(value) {
+
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+</script>
+
+</body>
+
+</html>
