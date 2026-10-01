@@ -2,7 +2,6 @@
 <html>
 
 <head>
-
 <meta charset="UTF-8">
 
 <meta name="viewport"
@@ -33,8 +32,8 @@ body {
 
 .card {
   background: white;
-  border-radius: 16px;
-  padding: 22px;
+  border-radius: 18px;
+  padding: 24px;
   box-shadow: 0 4px 18px rgba(0,0,0,.12);
 }
 
@@ -59,8 +58,8 @@ input {
 
 button {
   width: 100%;
-  margin-top: 15px;
-  padding: 16px;
+  margin-top: 18px;
+  padding: 17px;
   font-size: 20px;
   font-weight: bold;
   border: 0;
@@ -75,29 +74,29 @@ button {
 }
 
 .status {
-  font-size: 37px;
+  font-size: 36px;
   font-weight: bold;
-  margin-top: 12px;
+  margin-top: 15px;
 }
 
 .name {
   font-size: 28px;
   font-weight: bold;
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .pass {
-  font-size: 19px;
+  font-size: 20px;
   margin-top: 8px;
 }
 
 .time {
-  font-size: 15px;
-  margin-top: 10px;
+  font-size: 16px;
+  margin-top: 12px;
 }
 
 .green {
-  color: #17733b;
+  color: #147533;
 }
 
 .red {
@@ -105,21 +104,20 @@ button {
 }
 
 .orange {
-  color: #9a5b00;
+  color: #a25b00;
 }
 
 #result {
   display: none;
 }
 
-.small {
-  font-size: 13px;
-  color: #666;
-  margin-top: 14px;
+#working {
+  display: none;
+  font-size: 20px;
+  padding: 30px 0;
 }
 
 </style>
-
 </head>
 
 
@@ -145,9 +143,7 @@ button {
   <button
     class="start"
     onclick="beginScanning()">
-
     START SCANNER
-
   </button>
 
 </div>
@@ -161,18 +157,22 @@ button {
 </div>
 
 
+<div id="working">
+  Validating pass...
+</div>
+
+
 <div id="result"></div>
 
 </div>
-
 </div>
 
 
 <script>
 
-/*
-REPLACE THIS WITH YOUR GOOGLE APPS SCRIPT /exec URL
-*/
+/**********************************************
+ PUT YOUR CURRENT APPS SCRIPT /exec URL HERE
+**********************************************/
 
 const WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycbyFkG5cqss6bhCd8GLr_VUgPtYY3j4h3scy67NYHTP7FmRGUAv_59JFRbPKMEamAclM/exec";
@@ -181,54 +181,53 @@ const WEB_APP_URL =
 let staffPin = "";
 let scanner = null;
 let processing = false;
+let requestScript = null;
 
 
-window.addEventListener(
-  "load",
-  function() {
+/**********************************************
+ START
+**********************************************/
 
-    const savedPin =
-      localStorage.getItem("eventStaffPin");
+window.addEventListener("load", function() {
 
-    if (savedPin) {
-      document.getElementById("pin").value =
-        savedPin;
-    }
+  const savedPin =
+    localStorage.getItem("eventStaffPin");
+
+  if (savedPin) {
+    document.getElementById("pin").value =
+      savedPin;
   }
-);
+
+});
 
 
 function beginScanning() {
 
-  const pin =
+  staffPin =
     document.getElementById("pin")
       .value
       .trim();
 
-  if (!pin) {
+  if (!staffPin) {
     alert("Please enter the staff PIN.");
     return;
   }
 
-  staffPin = pin;
-
   localStorage.setItem(
     "eventStaffPin",
-    pin
+    staffPin
   );
 
   document.getElementById("login")
     .style.display = "none";
 
-  document.getElementById("result")
-    .style.display = "none";
-
-  document.getElementById("scannerArea")
-    .style.display = "block";
-
   startCamera();
 }
 
+
+/**********************************************
+ CAMERA
+**********************************************/
 
 function startCamera() {
 
@@ -237,14 +236,19 @@ function startCamera() {
   document.getElementById("result")
     .style.display = "none";
 
+  document.getElementById("working")
+    .style.display = "none";
+
   document.getElementById("scannerArea")
     .style.display = "block";
 
   document.getElementById("reader")
     .innerHTML = "";
 
+
   scanner =
     new Html5Qrcode("reader");
+
 
   scanner.start(
 
@@ -261,113 +265,125 @@ function startCamera() {
       }
     },
 
+
     function(decodedText) {
 
-      if (processing) return;
+      if (processing) {
+        return;
+      }
 
       processing = true;
 
       scanner.stop()
+
         .then(function() {
           validateQR(decodedText);
         })
+
         .catch(function() {
           validateQR(decodedText);
         });
+
     },
 
+
     function() {
-      // normal scanning misses ignored
+      // Ignore normal scan misses
     }
 
-  ).catch(function(error) {
+  )
 
-    document.getElementById("scannerArea")
-      .style.display = "none";
+  .catch(function(err) {
 
-    const box =
-      document.getElementById("result");
+    showError(
+      "Camera could not start. " +
+      "Please allow camera access."
+    );
 
-    box.style.display = "block";
-
-    box.innerHTML = `
-      <div class="status red">
-        CAMERA ERROR
-      </div>
-
-      <p>
-        Please allow camera permission
-        in your browser settings.
-      </p>
-
-      <button
-        class="next"
-        onclick="location.reload()">
-
-        TRY AGAIN
-      </button>
-    `;
   });
 }
 
+
+/**********************************************
+ SEND QR TO GOOGLE
+**********************************************/
 
 function validateQR(code) {
 
   document.getElementById("scannerArea")
     .style.display = "none";
 
-  const callbackName =
-    "qrCallback" + Date.now();
+  document.getElementById("working")
+    .style.display = "block";
 
-  window[callbackName] =
-    function(data) {
-
-      try {
-        delete window[callbackName];
-      } catch (e) {}
-
-      const request =
-        document.getElementById(
-          "validationRequest"
-        );
-
-      if (request) {
-        request.remove();
-      }
-
-      showResult(data);
-    };
+  document.getElementById("result")
+    .style.display = "none";
 
 
-  const script =
+  // Remove previous request
+  if (requestScript) {
+
+    try {
+      requestScript.remove();
+    } catch(e) {}
+
+  }
+
+
+  requestScript =
     document.createElement("script");
 
-  script.id =
-    "validationRequest";
 
-  script.src =
+  requestScript.src =
     WEB_APP_URL +
+
     "?code=" +
     encodeURIComponent(code) +
+
     "&pin=" +
     encodeURIComponent(staffPin) +
-    "&callback=" +
-    callbackName;
+
+    "&callback=handleValidationResponse" +
+
+    "&nocache=" +
+    Date.now();
 
 
-  script.onerror =
+  requestScript.onerror =
     function() {
 
+      document.getElementById("working")
+        .style.display = "none";
+
       showError(
-        "Could not contact the validator."
+        "Validator could not be contacted."
       );
 
     };
 
 
-  document.body.appendChild(script);
+  document.body.appendChild(
+    requestScript
+  );
 }
 
+
+/**********************************************
+ GOOGLE RESPONSE ARRIVES HERE
+**********************************************/
+
+function handleValidationResponse(data) {
+
+  document.getElementById("working")
+    .style.display = "none";
+
+  showResult(data);
+}
+
+
+/**********************************************
+ DISPLAY RESULT
+**********************************************/
 
 function showResult(data) {
 
@@ -390,7 +406,7 @@ function showResult(data) {
       </div>
 
       <div class="pass">
-        ${escapeHtml(data.passNo)}
+        Pass ${escapeHtml(data.passNo)}
       </div>
 
       <div class="time">
@@ -401,9 +417,7 @@ function showResult(data) {
       <button
         class="next"
         onclick="scanNext()">
-
         SCAN NEXT
-
       </button>
     `;
 
@@ -424,7 +438,7 @@ function showResult(data) {
       </div>
 
       <div class="pass">
-        ${escapeHtml(data.passNo)}
+        Pass ${escapeHtml(data.passNo)}
       </div>
 
       <div class="time">
@@ -435,9 +449,7 @@ function showResult(data) {
       <button
         class="next"
         onclick="scanNext()">
-
         SCAN NEXT
-
       </button>
     `;
 
@@ -460,9 +472,7 @@ function showResult(data) {
       <button
         class="next"
         onclick="restartLogin()">
-
         ENTER PIN AGAIN
-
       </button>
     `;
 
@@ -479,15 +489,13 @@ function showResult(data) {
       </div>
 
       <p>
-        QR code not found in guest list.
+        QR code is not on the guest list.
       </p>
 
       <button
         class="next"
         onclick="scanNext()">
-
         SCAN NEXT
-
       </button>
     `;
 
@@ -497,29 +505,47 @@ function showResult(data) {
 
   showError(
     data.message ||
-    "Unknown error."
+    "Unknown validator response."
   );
 }
 
+
+/**********************************************
+ NEXT QR
+**********************************************/
 
 function scanNext() {
 
   document.getElementById("result")
     .style.display = "none";
 
+  document.getElementById("working")
+    .style.display = "none";
+
   startCamera();
 }
 
+
+/**********************************************
+ WRONG PIN
+**********************************************/
 
 function restartLogin() {
 
   document.getElementById("result")
     .style.display = "none";
 
+  document.getElementById("scannerArea")
+    .style.display = "none";
+
   document.getElementById("login")
     .style.display = "block";
 }
 
+
+/**********************************************
+ ERROR
+**********************************************/
 
 function showError(message) {
 
@@ -541,13 +567,15 @@ function showError(message) {
     <button
       class="next"
       onclick="scanNext()">
-
       TRY AGAIN
-
     </button>
   `;
 }
 
+
+/**********************************************
+ SECURITY
+**********************************************/
 
 function escapeHtml(value) {
 
@@ -562,5 +590,4 @@ function escapeHtml(value) {
 </script>
 
 </body>
-
 </html>
